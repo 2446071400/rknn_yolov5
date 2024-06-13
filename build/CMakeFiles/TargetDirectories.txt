@@ -1,0 +1,3 @@
+/home/jzz/code/rknn_yolov5/build/CMakeFiles/rebuild_cache.dir
+/home/jzz/code/rknn_yolov5/build/CMakeFiles/yolov5.dir
+/home/jzz/code/rknn_yolov5/build/CMakeFiles/edit_cache.dir
