@@ -1,37 +1,14 @@
-// Copyright (c) 2023 by Rockchip Electronics Co., Ltd. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-/*-------------------------------------------
-                Includes
--------------------------------------------*/
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <opencv2/opencv.hpp>
 
 #include "yolov5.h"
 #include "image_utils.h"
 #include "file_utils.h"
 #include "image_drawing.h"
 
-#if defined(RV1106_1103) 
-    #include "dma_alloc.hpp"
-#endif
-
-/*-------------------------------------------
-                  Main Function
--------------------------------------------*/
 int main(int argc, char **argv)
 {
     if (argc != 3)
@@ -50,27 +27,24 @@ int main(int argc, char **argv)
     init_post_process();
 
     ret = init_yolov5_model(model_path, &rknn_app_ctx);
-    if (ret != 0)
-    {
-        printf("init_yolov5_model fail! ret=%d model_path=%s\n", ret, model_path);
-        goto out;
-    }
+    // if (ret != 0)
+    // {
+    //     printf("init_yolov5_model fail! ret=%d model_path=%s\n", ret, model_path);
+    //     goto out;
+    // }
 
     image_buffer_t src_image;
     memset(&src_image, 0, sizeof(image_buffer_t));
-    ret = read_image(image_path, &src_image);
-
-#if defined(RV1106_1103) 
-    //RV1106 rga requires that input and output bufs are memory allocated by dma
-    ret = dma_buf_alloc(RV1106_CMA_HEAP_PATH, src_image.size, &rknn_app_ctx.img_dma_buf.dma_buf_fd, 
-                       (void **) & (rknn_app_ctx.img_dma_buf.dma_buf_virt_addr));
-    memcpy(rknn_app_ctx.img_dma_buf.dma_buf_virt_addr, src_image.virt_addr, src_image.size);
-    dma_sync_cpu_to_device(rknn_app_ctx.img_dma_buf.dma_buf_fd);
-    free(src_image.virt_addr);
-    src_image.virt_addr = (unsigned char *)rknn_app_ctx.img_dma_buf.dma_buf_virt_addr;
-    src_image.fd = rknn_app_ctx.img_dma_buf.dma_buf_fd;
-    rknn_app_ctx.img_dma_buf.size = src_image.size;
-#endif
+    //ret = read_image(image_path, &src_image);
+    cv::Mat source_img = cv::imread("../model/bus.jpg");
+    cv::Mat img;
+    cv::cvtColor(source_img, img, cv::COLOR_BGR2RGB);
+    cv::Mat out_img(img); //放前面，放后面不让 goto
+    src_image.width = img.cols;
+    src_image.height = img.rows;
+    src_image.format = IMAGE_FORMAT_RGB888;
+    src_image.size = img.cols*img.rows*3;
+    src_image.virt_addr = img.data;
 
     if (ret != 0)
     {
@@ -107,7 +81,10 @@ int main(int argc, char **argv)
         draw_text(&src_image, text, x1, y1 - 20, COLOR_YELLOW, 10);
     }
 
-    write_image("out.png", &src_image);
+    //write_image("out.png", &src_image);
+    out_img.data = src_image.virt_addr;
+    cv::cvtColor(out_img, out_img, cv::COLOR_BGR2RGB);
+    cv::imwrite("out_opencv.png", out_img);
 
 out:
     deinit_post_process();
@@ -118,15 +95,10 @@ out:
         printf("release_yolov5_model fail! ret=%d\n", ret);
     }
 
-    if (src_image.virt_addr != NULL)
-    {
-#if defined(RV1106_1103) 
-        dma_buf_free(rknn_app_ctx.img_dma_buf.size, &rknn_app_ctx.img_dma_buf.dma_buf_fd, 
-                rknn_app_ctx.img_dma_buf.dma_buf_virt_addr);
-#else
-        free(src_image.virt_addr);
-#endif
-    }
+    // if (src_image.virt_addr != NULL)
+    // {
+    //     free(src_image.virt_addr);
+    // }
 
     return 0;
 }
